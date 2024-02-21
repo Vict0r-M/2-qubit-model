@@ -1,21 +1,35 @@
+#%%
+
+# Import modules:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from complexPyTorch.complexLayers import ComplexLinear
+from complexPyTorch.complexFunctions import complex_relu
 
+#%%
+
+# Define the model class:
 class FCNNModel(nn.Module):
-    def __init__(self):
+    def __init__(self, input_size, hidden_sizes, output_size):
         super(FCNNModel, self).__init__()
-        
-        # Define the architecture:
-        self.fc1 = nn.Linear(4, 128) # Input layer to first hidden layer
-        self.fc2 = nn.Linear(128, 64) # First hidden layer to second hidden layer
-        self.fc3 = nn.Linear(64, 32) # Second hidden layer to third hidden layer
-        self.fc4 = nn.Linear(32, 3) # Third hidden layer to output layer
 
+        # Defining the architecture:
+        # Input layer to first hidden layer:
+        self.hidden_layers = nn.ModuleList([ComplexLinear(input_size, hidden_sizes[0])])
+        # Intermediary, between hidden layers:
+        self.hidden_layers.extend([ComplexLinear(hidden_sizes[i], hidden_sizes[i+1]) for i in range(len(hidden_sizes) - 1)])
+        # Final hidden layer to output layer:
+        self.output_layer = ComplexLinear(hidden_sizes[-1], output_size)
+
+    # Defining the forward pass:
     def forward(self, x):
-        # Forward pass through the network:
-        x = F.relu(self.fc1(x)) # Activation function for first hidden layer
-        x = F.relu(self.fc2(x)) # Activation function for second hidden layer
-        x = F.relu(self.fc3(x)) # Activation function for third hidden layer
-        x = self.fc4(x) # No activation function for output layer
+        # Forward pass through hidden layers with ReLU activation:
+        for layer in self.hidden_layers:
+            x = complex_relu(layer(x))
+
+        # Forward pass through output layer:
+        x = self.output_layer(x)
         return x
+    
+#%%

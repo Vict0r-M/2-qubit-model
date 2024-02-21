@@ -1,50 +1,68 @@
+#%%
+
+# Import modules:
 import torch
 import torch.nn as nn
+import numpy as np
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
+from data.data_generator import StatesDataset
 from models.fcnn_model import FCNNModel
-from models.two_qubit_circuit import create_quantum_circuit
+from utils.hparams import input_size, hidden_sizes, output_size, batch_size, learning_rate, num_epochs
 
-# Load the dataset:
-dataset_path = 'data/wavefunctions_dataset.pt'
-wavefunctions_dataset = torch.load(dataset_path)
+#%%
 
-# Wrap the dataset in a TensorDataset and DataLoader for batch processing:
-dataset = TensorDataset(wavefunctions_dataset, wavefunctions_dataset)  # Dummy labels since we only have inputs
-train_loader = DataLoader(dataset, batch_size=32, shuffle=True)
+# Load and wrap dataset in DataLoader:
+dataset = StatesDataset()
+train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 # Instantiate the model and quantum circuit:
-model = FCNNModel()
-quantum_circuit = create_quantum_circuit()
+model = FCNNModel(input_size, hidden_sizes, output_size)
 
-# Loss function and optimizer:
-loss_function = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+# Optimizer:
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+
+# Custom MSE function for complex numbers:
+def complex_mse_loss(output, target):
+    real_diff = output.real - target.real
+    imag_diff = output.imag - target.imag
+    loss = torch.mean(real_diff ** 2 + imag_diff ** 2)
+    return loss
+
+# Initialize list to store average loss per epoch
+epoch_losses = []
 
 # Training loop:
-num_epochs = 100
 for epoch in range(num_epochs):
-    total_loss = 0
-    for wavefunction_batch, _ in train_loader:  # Using dummy labels
-        optimizer.zero_grad()
-        
-        batch_loss = 0
-        for wavefunction in wavefunction_batch:
-            # Process each wavefunction through the model to get predicted theta:
-            predicted_theta = model(wavefunction.unsqueeze(0))  # Add batch dimension
-            # Process each predicted_theta through the quantum circuit:
-            output_wavefunction = quantum_circuit(predicted_theta.squeeze())  # Remove batch dimension if needed
-            
-            # Calculate loss for the current wavefunction:
-            wavefunction_loss = loss_function(output_wavefunction, wavefunction.unsqueeze(0))  # Add batch dimension if needed
-            batch_loss += wavefunction_loss
-        
-        batch_loss /= len(wavefunction_batch)  # Average loss over the batch
-        total_loss += batch_loss.item()
+    model.train()
+    batch_losses = []  # List to store losses for each batch
+    for batch_idx, (state_batch, target_theta_batch) in enumerate(train_loader):
 
-        # Backpropagation:
-        batch_loss.backward()
-        optimizer.step()
-    
-    avg_epoch_loss = total_loss / len(train_loader)
-    print(f"Epoch {epoch+1}, Average Loss: {avg_epoch_loss}")
+        # Ensure target and output are compatible with complex numbers
+        state_batch = state_batch.to(torch.cfloat)  # Convert inputs to complex if not already
+        target_theta_batch = target_theta_batch.to(torch.cfloat)  # Ensure targets are complex
+
+        # Forward pass:
+        predicted_theta_batch = model(state_batch)
+        loss = complex_mse_loss(predicted_theta_batch, target_theta_batch)
+
+        # Backward pass and optimization:
+        optimizer.zero_grad()  # Clear existing gradients
+        loss.backward()  # Compute gradient of loss w.r.t. model parameters
+        optimizer.step()  # Update model parameters
+
+        batch_losses.append(loss.item())  # Store loss for this batch
+
+    # Calculate average loss for the epoch:
+    avg_epoch_loss = sum(batch_losses) / len(batch_losses)
+    epoch_losses.append(avg_epoch_loss)  # Store average loss for this epoch
+
+    # Print average loss for the epoch:
+    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_epoch_loss:.4f}")
+
+#%%
+
+torch.save(model.state_dict(), 'models/model_state_dict.pth')
+np.save("evaluation/epoch_losses.npy", np.array(epoch_losses))
+
+#%%

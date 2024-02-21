@@ -1,9 +1,15 @@
+#%%
+
+# Import modules:
 import pennylane as qml
 from pennylane import numpy as np
 
-def create_quantum_circuit(theta):
+#%%
+
+def compute_state(theta):
     """
-    Creates a Pennylane quantum circuit that implements the minimal universal 2-qubit gate.
+    Creates a Pennylane quantum circuit that implements the minimal universal 
+    2-qubit gate.
     """
     # Define a device with 2 qubits:
     dev = qml.device('default.qubit', wires=2)
@@ -21,4 +27,6 @@ def create_quantum_circuit(theta):
         # Return the statevector:
         return qml.state()
     
-    return circuit
+    return circuit(theta)
+
+#%%
