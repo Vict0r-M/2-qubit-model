@@ -1,5 +1,6 @@
 #%%
 
+# Import libraries:
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -19,14 +20,14 @@ def generate_data(samples=10000, angle_range=(0, 2*np.pi)):
         states[i] = compute_state(thetas[i])
     
     # Save data to file:
-    np.savez('data/amplitude_theta_dataset.npz', states=states, thetas=thetas)
+    np.savez('data/testing_amplitude_theta_dataset.npz', states=states, thetas=thetas)
     print(f"Generated and saved dataset with {samples} samples.")
 
 #%%
 
 class StatesDataset(Dataset):
     """Quantum states dataset, utilizing complex numbers."""
-    def __init__(self, npz_file='data/amplitude_theta_dataset.npz'):
+    def __init__(self, npz_file='data/testing_amplitude_theta_dataset.npz'):
         data = np.load(npz_file)
         self.states = data['states']
         self.thetas = data['thetas']
@@ -40,7 +41,7 @@ class StatesDataset(Dataset):
         return state, theta
 
 if __name__ == "__main__":
-    # Generate the dataset if this script is run directly
+    # Generate the dataset if this script is run directly:
     generate_data()
 
 #%%

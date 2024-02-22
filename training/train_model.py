@@ -13,7 +13,7 @@ from utils.hparams import input_size, hidden_sizes, output_size, batch_size, lea
 #%%
 
 # Load and wrap dataset in DataLoader:
-dataset = StatesDataset()
+dataset = StatesDataset(npz_file='data/amplitude_theta_dataset.npz')
 train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 # Instantiate the model and quantum circuit:
@@ -23,13 +23,20 @@ model = FCNNModel(input_size, hidden_sizes, output_size)
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
 # Custom MSE function for complex numbers:
-def complex_mse_loss(output, target):
-    real_diff = output.real - target.real
-    imag_diff = output.imag - target.imag
-    loss = torch.mean(real_diff ** 2 + imag_diff ** 2)
+def complex_mse_loss(output, target, high=2*torch.pi):
+    # Ensure the inputs are real-valued
+    output = output.real
+    
+    # Calculate the difference in angles, accounting for cyclical nature
+    diff = torch.abs(output - target)
+    diff = torch.min(diff, high - diff)
+    
+    # Compute the mean squared error on the adjusted differences
+    loss = torch.mean(diff**2)
     return loss
 
-# Initialize list to store average loss per epoch
+
+# Initialize list to store average loss per epoch:
 epoch_losses = []
 
 # Training loop:
@@ -40,7 +47,7 @@ for epoch in range(num_epochs):
 
         # Ensure target and output are compatible with complex numbers
         state_batch = state_batch.to(torch.cfloat)  # Convert inputs to complex if not already
-        target_theta_batch = target_theta_batch.to(torch.cfloat)  # Ensure targets are complex
+        #target_theta_batch = target_theta_batch.to(torch.cfloat)  # Ensure targets are complex
 
         # Forward pass:
         predicted_theta_batch = model(state_batch)
@@ -62,7 +69,8 @@ for epoch in range(num_epochs):
 
 #%%
 
-torch.save(model.state_dict(), 'models/model_state_dict.pth')
-np.save("evaluation/epoch_losses.npy", np.array(epoch_losses))
+# Save model dictionary and losses for plotting:
+torch.save(model.state_dict(), 'models/model2_state_dict.pth')
+np.save("evaluation/epoch2_losses.npy", np.array(epoch_losses))
 
 #%%
